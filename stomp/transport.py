@@ -9,6 +9,7 @@ import sys
 import time
 from io import BytesIO
 from time import monotonic
+import keepalive
 
 try:
     from socket import SOL_SOCKET, SO_KEEPALIVE, SOL_TCP, TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT
@@ -652,17 +653,6 @@ class Transport(BaseTransport):
         self.socket = None
 
     def __enable_keepalive(self):
-        def try_setsockopt(sock, name, fam, opt, val=None):
-            if val is None:
-                return True  # no value to set always works
-            try:
-                sock.setsockopt(fam, opt, val)
-                logging.debug("keepalive: set %r option to %r on socket", name, val)
-            except:
-                logging.error("keepalive: unable to set %r option to %r on socket", name, val)
-                return False
-            return True
-
         ka = self.__keepalive
 
         if not ka:
@@ -679,39 +669,13 @@ class Transport(BaseTransport):
                 logging.error("keepalive: bad specification %r", ka)
                 return
 
-        if ka_sig == "auto":
-            if LINUX_KEEPALIVE_AVAIL:
-                ka_sig = "linux"
-                ka_args = None
-                logging.debug("keepalive: autodetected linux-style support")
-            elif MAC_KEEPALIVE_AVAIL:
-                ka_sig = "mac"
-                ka_args = None
-                logging.debug("keepalive: autodetected mac-style support")
-            else:
-                logging.error("keepalive: unable to detect any implementation, DISABLED!")
-                return
-
-        if ka_sig == "linux":
-            logging.debug("keepalive: activating linux-style support")
-            if ka_args is None:
-                logging.debug("keepalive: using system defaults")
-                ka_args = (None, None, None)
-            ka_idle, ka_intvl, ka_cnt = ka_args
-            if try_setsockopt(self.socket, "enable", SOL_SOCKET, SO_KEEPALIVE, 1):
-                try_setsockopt(self.socket, "idle time", SOL_TCP, TCP_KEEPIDLE, ka_idle)
-                try_setsockopt(self.socket, "interval", SOL_TCP, TCP_KEEPINTVL, ka_intvl)
-                try_setsockopt(self.socket, "count", SOL_TCP, TCP_KEEPCNT, ka_cnt)
-        elif ka_sig == "mac":
-            logging.debug("keepalive: activating mac-style support")
-            if ka_args is None:
-                logging.debug("keepalive: using system defaults")
-                ka_args = (3,)
-            ka_intvl = ka_args
-            if try_setsockopt(self.socket, "enable", SOL_SOCKET, SO_KEEPALIVE, 1):
-                try_setsockopt(self.socket, socket.IPPROTO_TCP, 0x10, ka_intvl)
-        else:
-            logging.error("keepalive: implementation %r not recognized or not supported", ka_sig)
+        if ka_args is None or ka_sig == "auto":
+            logging.debug("keepalive: using system defaults")
+            ka_args = (None, None, None)
+        ka_idle, ka_intvl, ka_cnt = ka_args
+        # Any non-automatic signature values are handled by the keepalive library:
+        logging.debug(f"keepalive socket: after idle {ka_idle} secs, interval {ka_intvl} secs, max fails {ka_cnt}")
+        keepalive.set(self.socket, after_idle_sec=ka_idle, interval_sec=ka_intvl, max_fails=ka_cnt)
 
     def attempt_connection(self):
         """
