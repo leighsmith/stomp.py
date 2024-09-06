@@ -249,6 +249,7 @@ class HeartbeatListener(ConnectionListener):
         if self.received_heartbeat is None:
             return
         now = monotonic()
+        logging.debug(f"update_heartbeat, now {now} last received {self.received_heartbeat}")
         if now > self.received_heartbeat:
             self.received_heartbeat = now
 
@@ -289,7 +290,7 @@ class HeartbeatListener(ConnectionListener):
             if self.send_sleep != 0 and now > self.next_outbound_heartbeat:
                 logging.debug("sending a heartbeat message at %s", now)
                 try:
-                    self.transport.transmit(utils.Frame(None, {}, None))
+                    self.transport.transmit(utils.Frame(CMD_STOMP, {}, None))
                 except exception.NotConnectedException:
                     logging.debug("lost connection, unable to send heartbeat")
                 except Exception:
