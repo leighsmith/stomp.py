@@ -249,7 +249,7 @@ class HeartbeatListener(ConnectionListener):
         if self.received_heartbeat is None:
             return
         now = monotonic()
-        logging.debug(f"update_heartbeat, now {now} last received {self.received_heartbeat}")
+        logging.debug("update_heartbeat, now %s, last received %s", now, self.received_heartbeat)
         if now > self.received_heartbeat:
             self.received_heartbeat = now
 
